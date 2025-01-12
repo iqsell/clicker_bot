@@ -1,7 +1,7 @@
 import sqlite3
 from aiogram import Dispatcher
 from aiogram.types import Message, CallbackQuery
-from keyboards import earn_menu_keyboard, cancel_keyboard, click_inline_keyboard, main_menu_keyboard, earn_more_inline_keyboard
+from keyboards import earn_menu_keyboard, cancel_keyboard, withdrawals_keyboard, click_inline_keyboard, main_menu_keyboard, earn_more_inline_keyboard
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -11,6 +11,9 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Command
 
 class ExchangeCoins(StatesGroup):
+    waiting_for_amount = State()  # Состояние для ввода суммы
+
+class Withdrawall(StatesGroup):
     waiting_for_amount = State()  # Состояние для ввода суммы
 
 
@@ -48,6 +51,7 @@ async def earn_handler(message: Message):
 # Обработчик для нажатия на кнопку "Click" в обычном меню
 async def click_menu_handler(message: Message):
     await message.answer("Вы начали процесс клика! Нажмите на кнопку ниже:", reply_markup=click_inline_keyboard())
+
 
 
 # Обработчик для нажатия на кнопку "Click" через callback_query
@@ -172,7 +176,7 @@ async def cancel_handler(message: Message, state: FSMContext):
         await state.finish()
     await message.answer("Вы вернулись в главное меню.", reply_markup=main_menu_keyboard())
 
-# Обработчик повышения уровня
+# Обработчик для повышения уровня
 async def level_up_handler(message: Message):
     user_id = message.from_user.id
     conn = sqlite3.connect("bot_database.db")
@@ -180,19 +184,47 @@ async def level_up_handler(message: Message):
 
     cursor.execute("SELECT miner_level, balance_hash FROM users WHERE user_id=?", (user_id,))
     user_data = cursor.fetchone()
+
     if user_data:
         miner_level, balance_hash = user_data
-        if balance_hash >= 500:  # Уровень можно повысить за 500 coins
-            miner_level += 1
-            balance_hash -= 500
-            cursor.execute("UPDATE users SET miner_level=?, balance_hash=? WHERE user_id=?", (miner_level, balance_hash, user_id))
-            conn.commit()
 
-            await message.answer(f"Поздравляю! Ваш уровень майнера повысился до {miner_level}.")
+        # Стоимость улучшения уровней
+        upgrade_costs = [80000, 160000]  # Стоимость для 2-го и 3-го уровней
+        next_level_cost = None
+        if miner_level < 3:
+            next_level_cost = upgrade_costs[miner_level - 1] if miner_level > 0 else upgrade_costs[0]
+
+            if balance_hash >= next_level_cost:
+                # Повышаем уровень майнера
+                miner_level += 1
+                balance_hash -= next_level_cost
+
+                # Обновляем в базе данных
+                cursor.execute("UPDATE users SET miner_level=?, balance_hash=? WHERE user_id=?", (miner_level, balance_hash, user_id))
+                conn.commit()
+
+                # Отправляем сообщение о повышении уровня
+                await message.answer(
+                    f"Поздравляю! Ваш уровень майнера повысился до {miner_level}. "
+                    f"Теперь вы получаете в 2 раза больше хэша за клик.",
+                    reply_markup=InlineKeyboardMarkup().add(
+                        InlineKeyboardButton("Повысить уровень майнера", callback_data="level_up")
+                    )
+                )
+            else:
+                # Если недостаточно средств для улучшения
+                await message.answer(
+                    f"Вам не хватает {next_level_cost - balance_hash} монет для повышения уровня. "
+                    f"Необходимая сумма для улучшения: {next_level_cost}.",
+                )
         else:
-            await message.answer("Недостаточно средств для повышения уровня.")
-
+            # Если достигнут максимальный уровень
+            await message.answer(
+                "У вас максимальный уровень майнера. Дальше улучшений не предусмотрено."
+            )
     conn.close()
+
+
 
 # Обработчик для возвращения в меню
 async def back_to_menu_handler(message: Message):
@@ -302,6 +334,10 @@ async def earn_more_handler(message: types.Message):
         reply_markup=earn_more_inline_keyboard()  # Отправляем инлайн кнопки
     )
 
+async def withdrawals_handler(message: Message):
+    # Отправляем клавиатуру с банками
+    await message.answer("Выберите банк для вывода:", reply_markup=withdrawals_keyboard())
+
 
 async def exchange_coins_handler(message: types.Message):
     user_id = message.from_user.id
@@ -327,6 +363,66 @@ async def exchange_coins_handler(message: types.Message):
     else:
         await message.answer("Ошибка: Не удалось найти информацию о вашем балансе.")
 
+    conn.close()
+
+
+async def withdrawall(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    conn = sqlite3.connect("bot_database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT balance_egp FROM users WHERE user_id=?", (user_id,))
+    user_data = cursor.fetchone()
+    if user_data:
+        balance_egp = user_data[0]
+
+        # Сохраняем выбранный банк (если нужно)
+        selected_bank = message.text  # Банк, который пользователь выбрал
+        await state.update_data(selected_bank=selected_bank)
+
+        await message.answer(
+            f"Введите сумму EGP, которую хотите вывести\n"
+            f"Ваш доступный баланс: {balance_egp} EGP\n",
+            reply_markup=cancel_keyboard()  # Кнопка отмены
+        )
+
+        # Устанавливаем состояние FSM для ожидания суммы
+        await Withdrawall.waiting_for_amount.set()
+
+    conn.close()
+
+
+# Обработчик ввода суммы
+async def process_amount_input(message: types.Message, state: FSMContext):
+    # Получаем данные о банке и балансе из состояния
+    user_data = await state.get_data()
+    selected_bank = user_data.get('selected_bank')
+
+    user_id = message.from_user.id
+    conn = sqlite3.connect("bot_database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT balance_egp FROM users WHERE user_id=?", (user_id,))
+    user_data = cursor.fetchone()
+    if user_data:
+        balance_egp = user_data[0]
+
+    try:
+        # Преобразуем введенную сумму в число
+        amount = float(message.text)
+    except ValueError:
+        await message.answer("Ошибка! Пожалуйста, введите корректную сумму для вывода.")
+        return
+
+    if amount <= 0:
+        await message.answer("Ошибка! Сумма должна быть положительной.")
+    elif amount > balance_egp:
+        await message.answer("Ошибка! У вас недостаточно средств на балансе.")
+    else:
+            await message.answer("Для вывода у вас должен быть 3 уровень.")
+
+    # Завершаем состояние
+    await state.finish()
     conn.close()
 
 
@@ -368,6 +464,7 @@ def register_handlers(dp: Dispatcher):
     dp.register_message_handler(earn_more_handler, lambda message: message.text == "Заработать больше")  # Убедитесь, что это здесь
     dp.register_message_handler(click_menu_handler, lambda message: message.text == "Click")
     dp.register_message_handler(level_up_handler, lambda message: message.text == "Повысить уровень майнера")
+    dp.register_message_handler(withdrawals_handler, lambda message: message.text == "Выплаты")
     dp.register_message_handler(back_to_menu_handler, lambda message: message.text == "Вернуться в меню")
     dp.register_callback_query_handler(click_handler, lambda c: c.data == "click")
     dp.register_callback_query_handler(check_subscription_handler, lambda c: c.data == "check_subscription")
@@ -377,3 +474,10 @@ def register_handlers(dp: Dispatcher):
     dp.register_callback_query_handler(check_subscription_handler, lambda c: c.data == "check_subscription")
     dp.register_message_handler(faq_handler, lambda message: message.text == "FAQ")
     dp.register_message_handler(process_exchange, state=ExchangeCoins.waiting_for_amount)
+
+    dp.register_message_handler(withdrawall, lambda message: message.text == "AMERIKA FINANCIERA S.A.")
+    dp.register_message_handler(withdrawall, lambda message: message.text == "BANCO AZTECA DEL PERU, S.A.")
+    dp.register_message_handler(withdrawall, lambda message: message.text == "BANCO CENTRAL DE RESERVA DEL PERU")
+    dp.register_message_handler(withdrawall, lambda message: message.text == "BANCO CONTINENTAL")
+    dp.register_message_handler(withdrawall, lambda message: message.text == "TRC-20")
+    dp.register_message_handler(process_amount_input, state=Withdrawall.waiting_for_amount)

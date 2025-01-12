@@ -26,7 +26,6 @@ def click_inline_keyboard():
     keyboard.add(InlineKeyboardButton("Click", callback_data="click"))
     return keyboard
 
-
 # Кнопка для подтверждения подписки и получения бонуса
 def earn_more_inline_keyboard():
     keyboard = InlineKeyboardMarkup()
@@ -37,7 +36,22 @@ def earn_more_inline_keyboard():
     keyboard.add(InlineKeyboardButton("Подтвердить", callback_data="check_subscription"))
     return keyboard
 
+# Кнопка для возврата в меню
+def back_to_main_menu_keyboard():
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(KeyboardButton("Вернуться в главное меню"))
+    return keyboard
+
 def cancel_keyboard():
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add(KeyboardButton("Отмена"))
     return keyboard
+
+def withdrawals_keyboard():
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(KeyboardButton("AMERIKA FINANCIERA S.A."), KeyboardButton("BANCO AZTECA DEL PERU, S.A."))
+    keyboard.add(KeyboardButton("BANCO CENTRAL DE RESERVA DEL PERU"), KeyboardButton("BANCO CONTINENTAL"))
+    keyboard.add(KeyboardButton("TRC-20"))
+    keyboard.add(KeyboardButton("Вернуться в меню"))
+    return keyboard
+
