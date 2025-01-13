@@ -4,7 +4,7 @@ def setup_database():
     conn = sqlite3.connect("bot_database.db")
     cursor = conn.cursor()
 
-    # Создаем таблицу пользователей с новым столбцом для отслеживания бонуса
+    # Создаем таблицу пользователей с новым столбцом last_click_reset
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER UNIQUE,                  -- Уникальный идентификатор пользователя
@@ -16,7 +16,8 @@ def setup_database():
         total_referrals INTEGER DEFAULT 0,        -- Общее количество рефералов
         progress INTEGER DEFAULT 0,               -- Прогресс
         balance_hash INTEGER DEFAULT 0,           -- Баланс хэша
-        bonus_received INTEGER DEFAULT 0          -- Столбец для отслеживания бонуса (0 - не получен, 1 - получен)
+        bonus_received INTEGER DEFAULT 0,         -- Столбец для отслеживания бонуса (0 - не получен, 1 - получен)
+        last_click_reset DATE                     -- Дата последнего сброса кликов
     )''')
 
     # Создаем таблицу для рефералов (если необходимо)

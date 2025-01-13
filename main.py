@@ -6,7 +6,6 @@ from config import BOT_TOKEN
 from database import setup_database
 from keyboards import main_menu_keyboard
 from handlers import register_handlers
-from handlers import register_handlers
 
 
 # Инициализация бота и диспетчера

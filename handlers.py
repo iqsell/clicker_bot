@@ -1,7 +1,7 @@
 import sqlite3
 from aiogram import Dispatcher
 from aiogram.types import Message, CallbackQuery
-from keyboards import earn_menu_keyboard, cancel_keyboard, withdrawals_keyboard, click_inline_keyboard, main_menu_keyboard, earn_more_inline_keyboard
+from keyboards import earn_menu_keyboard, earn_more_keyboard, cancel_keyboard, withdrawals_keyboard, click_inline_keyboard, main_menu_keyboard, earn_more_inline_keyboard
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -17,31 +17,70 @@ class Withdrawall(StatesGroup):
     waiting_for_amount = State()  # Состояние для ввода суммы
 
 
-# Обработчик для стартовой команды "/start"
 async def start_handler(message: Message):
     user_id = message.from_user.id
     username = message.from_user.username
+    args = message.get_args()  # Получаем аргументы команды /start
 
-    # Подключаемся к базе данных
     conn = sqlite3.connect("bot_database.db")
     cursor = conn.cursor()
 
-    # Проверяем, существует ли пользователь в базе
+    # Проверяем, существует ли пользователь
     cursor.execute("SELECT user_id FROM users WHERE user_id=?", (user_id,))
     user = cursor.fetchone()
 
-    # Если пользователя нет в базе, добавляем его
     if not user:
+        # Добавляем нового пользователя
         cursor.execute("INSERT INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
         conn.commit()
 
+        # Проверяем, есть ли реферальный код
+        if args.startswith("ref_"):
+            try:
+                referrer_id = int(args.split("_")[1])
+
+                # Проверяем, что пригласивший пользователь существует
+                cursor.execute("SELECT user_id FROM users WHERE user_id=?", (referrer_id,))
+                referrer = cursor.fetchone()
+
+                if referrer:
+                    # Добавляем запись в таблицу referrals
+                    cursor.execute(
+                        "INSERT INTO referrals (user_id, referral_user_id) VALUES (?, ?)",
+                        (referrer_id, user_id)
+                    )
+
+                    # Увеличиваем счетчик total_referrals для пригласившего
+                    cursor.execute(
+                        "UPDATE users SET total_referrals = total_referrals + 1 WHERE user_id=?",
+                        (referrer_id,)
+                    )
+
+                    # Начисляем бонус пригласившему
+                    cursor.execute(
+                        "UPDATE users SET balance_egp = balance_egp + 60 WHERE user_id=?",
+                        (referrer_id,)
+                    )
+
+                    # (Опционально) Начисляем бонус новому пользователю
+                    cursor.execute(
+                        "UPDATE users SET balance_egp = balance_egp + 60 WHERE user_id=?",
+                        (user_id,)
+                    )
+
+                    conn.commit()
+
+            except (ValueError, IndexError):
+                # Неверный формат реферального кода
+                pass
+
     conn.close()
 
-    # Отправляем сообщение с информацией и кнопкой "Click"
     await message.answer(
-        "Добро пожаловать в Coins ClickerBot! Выберите действие из меню.",
+        "Добро пожаловать! Вы успешно зарегистрированы.",
         reply_markup=main_menu_keyboard()
     )
+
 
 # Обработчик для кнопки "Зарабатывать"
 async def earn_handler(message: Message):
@@ -53,15 +92,17 @@ async def click_menu_handler(message: Message):
     await message.answer("Вы начали процесс клика! Нажмите на кнопку ниже:", reply_markup=click_inline_keyboard())
 
 
-
-# Обработчик для нажатия на кнопку "Click" через callback_query
 async def click_handler(callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     conn = sqlite3.connect("bot_database.db")
     cursor = conn.cursor()
 
     # Получаем данные о пользователе из базы
-    cursor.execute("SELECT clicks_today, progress, miner_level, balance_hash FROM users WHERE user_id=?", (user_id,))
+    cursor.execute("""
+        SELECT clicks_today, progress, miner_level, balance_hash 
+        FROM users 
+        WHERE user_id=?
+    """, (user_id,))
     user_data = cursor.fetchone()
 
     if user_data:
@@ -85,7 +126,7 @@ async def click_handler(callback_query: CallbackQuery):
             clicks_today += 1
 
             # Расчитываем прогресс
-            progress = (clicks_today / 100) * 100  # Прогресс от 100 кликов
+            progress = int((clicks_today / 100) * 100)  # Прогресс в процентах
             if progress > 100:
                 progress = 100  # Прогресс не должен превышать 100%
 
@@ -98,28 +139,37 @@ async def click_handler(callback_query: CallbackQuery):
             # Обновляем данные в базе данных
             cursor.execute("""
                 UPDATE users 
-                SET clicks_today = ?, progress = ?, balance_hash = ?
+                SET clicks_today = ?, progress = ?, balance_hash = ? 
                 WHERE user_id = ?
             """, (clicks_today, progress, balance_hash, user_id))
-
             conn.commit()
 
             # Формируем сообщение с актуальной информацией
             message_text = (
                 f"Сегодня: {clicks_today} / 100\n"
-                f"Прогресс: {int(progress)}%\n"
+                f"Прогресс: {progress}%\n"
                 f"Coins за клик: {coins_per_click}\n"
                 f"Уровень Шахтера: {miner_level}\n"
                 f"Баланс хэша: {balance_hash}"
             )
 
-            # Редактируем исходное сообщение
-            await callback_query.message.edit_text(
-                message_text, reply_markup=click_inline_keyboard()
-            )
+            # Попробуем обновить сообщение с информацией
+            try:
+                await callback_query.message.edit_text(
+                    message_text,
+                    reply_markup=InlineKeyboardMarkup().add(
+                        InlineKeyboardButton("Click", callback_data="click")
+                    )
+                )
+            except Exception as e:
+                print(f"Ошибка при редактировании сообщения: {e}")
 
             # Отправляем ответ на клик
             await callback_query.answer("Вы нажали на кнопку Click!")
+
+    else:
+        # Если пользователь не найден, уведомляем об этом
+        await callback_query.answer("Пользователь не найден. Пожалуйста, зарегистрируйтесь.")
 
     conn.close()
 
@@ -334,6 +384,14 @@ async def earn_more_handler(message: types.Message):
         reply_markup=earn_more_inline_keyboard()  # Отправляем инлайн кнопки
     )
 
+
+# Обработчик для кнопки "Заработать больше"
+async def earn_more(message: types.Message):
+    await message.answer(
+        "ХОТИТЕ ЗАРАБОТАТЬ БОЛЬШЕ?! !\n\n"
+        "Подпишитесь на канал и посмотрите 20 сообщений",
+        reply_markup=earn_more_keyboard()  # Отправляем инлайн кнопки
+    )
 async def withdrawals_handler(message: Message):
     # Отправляем клавиатуру с банками
     await message.answer("Выберите банк для вывода:", reply_markup=withdrawals_keyboard())
@@ -351,7 +409,7 @@ async def exchange_coins_handler(message: types.Message):
         max_egp = balance_hash // 200  # Курс: 200 хэш = 1 EGP
 
         await message.answer(
-            f"Введите сумму хэша, которую хотите обменять на EGP\n"
+            f"Введите сумму EGP, которую хотите обменять с coins\n"
             f"Ваш доступный баланс: {balance_hash} coins\n"
             f"Максимальная сумма: {max_egp} EGP\n"
             f"Курс обмена: 200 hash = 1 EGP",
@@ -454,6 +512,69 @@ async def check_subscription_handler(callback_query: CallbackQuery):
 
     conn.close()
 
+async def referral_handler(message: Message):
+    user_id = message.from_user.id
+    referral_link = f"https://t.me/hackaton_kotiki_bot?start=ref_{user_id}"
+    await message.answer(
+        f"Приглашайте друзей с вашей уникальной ссылкой и получайте бонусы!\n\n"
+        f"Ваша ссылка: {referral_link}",
+        reply_markup=main_menu_keyboard()
+    )
+def get_top_players(user_id):
+    conn = sqlite3.connect("bot_database.db")
+    cursor = conn.cursor()
+
+    # Получаем всех пользователей, отсортированных по balance_egp в порядке убывания
+    cursor.execute("SELECT user_id, username, balance_egp FROM users ORDER BY balance_egp DESC")
+    users = cursor.fetchall()
+
+    # Находим место текущего пользователя
+    user_place = None
+    for i, user in enumerate(users):
+        if user[0] == user_id:
+            user_place = i + 1
+            break
+
+    # Формируем топ-3 игроков
+    top_players = users[:3]
+    conn.close()
+
+    return top_players, user_place
+
+def clean_text(text):
+    """Обрабатывает текст, чтобы избежать суррогатных пар."""
+    return text.encode('utf-16', 'surrogatepass').decode('utf-16')
+
+async def top_handler(message: Message):
+    user_id = message.from_user.id
+
+    conn = sqlite3.connect("bot_database.db")
+    cursor = conn.cursor()
+
+    # Получаем пользователей, отсортированных по убыванию баланса
+    cursor.execute("SELECT username, balance_egp FROM users ORDER BY balance_egp DESC LIMIT 3")
+    top_users = cursor.fetchall()
+
+    # Определяем место текущего пользователя
+    cursor.execute("SELECT COUNT(*) FROM users WHERE balance_egp > (SELECT balance_egp FROM users WHERE user_id=?)", (user_id,))
+    position = cursor.fetchone()[0] + 1
+
+    conn.close()
+
+    # Формируем текст топа
+    response = f"🏆 Сегодня вы находитесь на {position}-м месте!\n\n"
+    response += "🎁 Чтобы получить приз, вы должны быть в тройке лучших игроков по балансу счета ✨:\n"
+    response += "-----------------------------\n"
+    prizes = [175000, 135000, 95000]
+
+    for idx, (username, balance) in enumerate(top_users):
+        medal = "🥇" if idx == 0 else "🥈" if idx == 1 else "🥉"
+        response += f"{medal} {username}\nТекущий баланс: {balance} EGP\nПриз: {prizes[idx]} EGP\n-----------------------------\n"
+
+    # Обработка строки перед отправкой
+    response = clean_text(response)
+
+    await message.answer(response)
 
 
 
@@ -481,3 +602,6 @@ def register_handlers(dp: Dispatcher):
     dp.register_message_handler(withdrawall, lambda message: message.text == "BANCO CONTINENTAL")
     dp.register_message_handler(withdrawall, lambda message: message.text == "TRC-20")
     dp.register_message_handler(process_amount_input, state=Withdrawall.waiting_for_amount)
+    dp.register_message_handler(earn_more, lambda message: message.text == "Дополнительно")
+    dp.register_message_handler(referral_handler, lambda message: message.text == "Рефералка")
+    dp.register_message_handler(top_handler, lambda message: message.text == "Топ пользователей")

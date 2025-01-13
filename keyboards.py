@@ -9,7 +9,7 @@ def main_menu_keyboard():
     keyboard.add(KeyboardButton("Рефералка"), KeyboardButton("Профиль"))
     keyboard.add(KeyboardButton("Обмен Coins"), KeyboardButton("Выплаты"))
     keyboard.add(KeyboardButton("FAQ"))
-    keyboard.add(KeyboardButton("Промокод"))
+    keyboard.add(KeyboardButton("Дополнительно"))
     return keyboard
 
 # Меню для заработка
@@ -34,6 +34,12 @@ def earn_more_inline_keyboard():
 
     # Кнопка для проверки подписки и получения бонуса
     keyboard.add(InlineKeyboardButton("Подтвердить", callback_data="check_subscription"))
+    return keyboard
+
+def earn_more_keyboard():
+    keyboard = InlineKeyboardMarkup()
+    # Кнопка "Канал" — перенаправление на канал
+    keyboard.add(InlineKeyboardButton("Канал", url="https://t.me/testingtesting131"))
     return keyboard
 
 # Кнопка для возврата в меню
