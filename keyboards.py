@@ -4,53 +4,53 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardBut
 # Основное меню
 def main_menu_keyboard():
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton("Зарабатывать"))
-    keyboard.add(KeyboardButton("Заработать больше"), KeyboardButton("Топ пользователей"))
-    keyboard.add(KeyboardButton("Рефералка"), KeyboardButton("Профиль"))
-    keyboard.add(KeyboardButton("Обмен Coins"), KeyboardButton("Выплаты"))
-    keyboard.add(KeyboardButton("FAQ"))
-    keyboard.add(KeyboardButton("Дополнительно"))
+    keyboard.add(KeyboardButton("🍬Earn"))
+    keyboard.add(KeyboardButton("🥂Earn more"), KeyboardButton("🏆Users Top"))
+    keyboard.add(KeyboardButton("🎰Referral"), KeyboardButton("🗿Profile"))
+    keyboard.add(KeyboardButton("💸Coin Exchange"), KeyboardButton("💰payout"))
+    keyboard.add(KeyboardButton("💎FAQ"))
+    keyboard.add(KeyboardButton("✈️Additionally"))
     return keyboard
 
 # Меню для заработка
 def earn_menu_keyboard():
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton("Click"))
-    keyboard.add(KeyboardButton("Повысить уровень майнера"))
-    keyboard.add(KeyboardButton("Вернуться в меню"))
+    keyboard.add(KeyboardButton("⛏️Click"))
+    keyboard.add(KeyboardButton("⬆️lead the miner's node"))
+    keyboard.add(KeyboardButton("🔙Return to menu"))
     return keyboard
 
 # Инлайн кнопка "Click"
 def click_inline_keyboard():
     keyboard = InlineKeyboardMarkup()
-    keyboard.add(InlineKeyboardButton("Click", callback_data="click"))
+    keyboard.add(InlineKeyboardButton("⛏️Click", callback_data="⛏️click"))
     return keyboard
 
 # Кнопка для подтверждения подписки и получения бонуса
 def earn_more_inline_keyboard():
     keyboard = InlineKeyboardMarkup()
     # Кнопка "Канал" — перенаправление на канал
-    keyboard.add(InlineKeyboardButton("Канал", url="https://t.me/testingtesting131"))
+    keyboard.add(InlineKeyboardButton("📰Channel", url="https://t.me/testingtesting131"))
 
     # Кнопка для проверки подписки и получения бонуса
-    keyboard.add(InlineKeyboardButton("Подтвердить", callback_data="check_subscription"))
+    keyboard.add(InlineKeyboardButton("✅Accept", callback_data="check_subscription"))
     return keyboard
 
 def earn_more_keyboard():
     keyboard = InlineKeyboardMarkup()
     # Кнопка "Канал" — перенаправление на канал
-    keyboard.add(InlineKeyboardButton("Канал", url="https://t.me/testingtesting131"))
+    keyboard.add(InlineKeyboardButton("Channel", url="https://t.me/testingtesting131"))
     return keyboard
 
 # Кнопка для возврата в меню
 def back_to_main_menu_keyboard():
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton("Вернуться в главное меню"))
+    keyboard.add(KeyboardButton("Go back to the main menu"))
     return keyboard
 
 def cancel_keyboard():
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton("Отмена"))
+    keyboard.add(KeyboardButton("cancellation"))
     return keyboard
 
 def withdrawals_keyboard():
@@ -58,6 +58,6 @@ def withdrawals_keyboard():
     keyboard.add(KeyboardButton("AMERIKA FINANCIERA S.A."), KeyboardButton("BANCO AZTECA DEL PERU, S.A."))
     keyboard.add(KeyboardButton("BANCO CENTRAL DE RESERVA DEL PERU"), KeyboardButton("BANCO CONTINENTAL"))
     keyboard.add(KeyboardButton("TRC-20"))
-    keyboard.add(KeyboardButton("Вернуться в меню"))
+    keyboard.add(KeyboardButton("🔙Return to menu"))
     return keyboard
 
